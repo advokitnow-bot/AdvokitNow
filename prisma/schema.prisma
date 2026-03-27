@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// *
+///  * ========= USER MODEL =========
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  mobile       String   @unique
+  dob          DateTime
+  adharPan     String   @unique
+  docUrl       String?
+  password     String
+  subscription Boolean  @default(false)
+  role         UserRole @default(INDIVIDUAL)
+  firmId       Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  firm      Firm? @relation("FirmEmployees", fields: [firmId], references: [id])
+  firmOwned Firm? @relation("FirmOwner")
+
+  activityLogs  ActivityLog[]
+  cases         Case[]
+  clients       Client[]
+  documents     Document[]
+  notifications Notification[]
+  otpLogs       OtpLog[]
+
+  @@map("users")
+}
+
+model Firm {
+  id        Int      @id @default(autoincrement())
+  firmName  String
+  gstNumber String?
+  firmCode  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // Relations
+  ownerId   Int    @unique
+  owner     User   @relation("FirmOwner", fields: [ownerId], references: [id])
+  employees User[] @relation("FirmEmployees")
+}
+
+/// *
+///  * ========== OTP LOG ==========
+model OtpLog {
+  id          String   @id @default(cuid())
+  phoneNumber String
+  otp         String
+  isUsed      Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "otp_logs_userId_fkey")
+  @@map("otp_logs")
+}
+
+/// *
+///  * ========== CLIENT ==========
+model Client {
+  id          String   @id @default(cuid())
+  name        String
+  phoneNumber String?
+  email       String?
+  address     String?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      Int
+  cases       Case[]
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "clients_userId_fkey")
+  @@map("clients")
+}
+
+/// *
+///  * ========== CASE ==========
+model Case {
+  id            String         @id @default(cuid())
+  caseNumber    String         @unique
+  title         String
+  description   String?        @db.Text
+  court         String
+  judge         String?
+  caseType      CaseType
+  status        CaseStatus     @default(ACTIVE)
+  filingDate    DateTime?
+  nextHearing   DateTime?
+  priority      Priority       @default(MEDIUM)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  userId        Int
+  clientId      String
+  activityLogs  ActivityLog[]
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents     Document[]
+  notifications Notification[]
+
+  @@index([clientId], map: "cases_clientId_fkey")
+  @@index([userId], map: "cases_userId_fkey")
+  @@map("cases")
+}
+
+/// *
+///  * ========== DOCUMENT ==========
+model Document {
+  id           String       @id @default(cuid())
+  fileName     String
+  originalName String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  category     DocumentType @default(OTHER)
+  description  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  userId       Int
+  caseId       String
+  case         Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([caseId], map: "documents_caseId_fkey")
+  @@index([userId], map: "documents_userId_fkey")
+  @@map("documents")
+}
+
+/// *
+///  * ========== CAUSE LIST ==========
+model CauseList {
+  id          String   @id @default(cuid())
+  court       String
+  judge       String
+  date        DateTime
+  caseNumber  String
+  caseTitle   String
+  hearingType String?
+  time        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([court, date, caseNumber])
+  @@map("cause_lists")
+}
+
+/// *
+///  * ========== JUDGMENT ==========
+model Judgment {
+  id         String   @id @default(cuid())
+  caseNumber String
+  court      String
+  judge      String
+  date       DateTime
+  title      String
+  content    String   @db.LongText
+  category   String?
+  keywords   String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([caseNumber])
+  @@index([court])
+  @@index([date])
+  @@map("judgments")
+}
+
+/// *
+///  * ========== NOTIFICATION ==========
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  message   String           @db.Text
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  userId    Int
+  caseId    String?
+  case      Case?            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([caseId], map: "notifications_caseId_fkey")
+  @@index([userId], map: "notifications_userId_fkey")
+  @@map("notifications")
+}
+
+/// *
+///  * ========== ACTIVITY LOG ==========
+model ActivityLog {
+  id          String     @id @default(cuid())
+  action      String
+  description String     @db.Text
+  entityType  EntityType
+  entityId    String
+  metadata    String?    @db.LongText
+  createdAt   DateTime   @default(now())
+  userId      Int
+  caseId      String?
+  case        Case?      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([caseId], map: "activity_logs_caseId_fkey")
+  @@index([userId], map: "activity_logs_userId_fkey")
+  @@map("activity_logs")
+}
+
+model activity {
+  id          Int             @id @default(autoincrement())
+  caseId      String
+  type        activity_type
+  description String
+  status      activity_status @default(PENDING)
+
+  dueDate   DateTime? // optional
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([caseId], map: "Activity_caseId_idx")
+}
+
+enum UserRole {
+  INDIVIDUAL
+  FIRM_OWNER
+  EMPLOYEE
+}
+
+enum CaseType {
+  CIVIL
+  CRIMINAL
+  FAMILY
+  CORPORATE
+  TAX
+  LABOR
+  PROPERTY
+  CONSTITUTIONAL
+  OTHER
+}
+
+enum CaseStatus {
+  ACTIVE
+  PENDING
+  CLOSED
+  DISMISSED
+  SETTLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DocumentType {
+  PETITION
+  AFFIDAVIT
+  EVIDENCE
+  ORDER
+  JUDGMENT
+  NOTICE
+  CORRESPONDENCE
+  OTHER
+}
+
+enum NotificationType {
+  HEARING_REMINDER
+  CASE_UPDATE
+  DOCUMENT_UPLOAD
+  SYSTEM_ALERT
+  DEADLINE_REMINDER
+}
+
+enum EntityType {
+  CASE
+  CLIENT
+  DOCUMENT
+  USER
+}
+
+enum activity_type {
+  FILED
+  IN_COURT
+  HEARING
+  JUDGMENT
+  CLOSED
+}
+
+enum activity_status {
+  COMPLETED
+  PENDING
+}
