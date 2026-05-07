@@ -20,7 +20,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {user?.name || "User"} to your own Workspace.</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {user?.name || "User"}</h1>
         <p className="text-muted-foreground">Here's what's happening with your cases today.</p>
       </div>
 
